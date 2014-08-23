@@ -57,16 +57,14 @@ public class VIVECameraController : MonoBehaviour
 
 	// Camera positioning:
 	// Set this transform with an object that the camera orientation should follow.
-	private Transform 	vroamCompass;
+	[SerializeField]
+	private Transform 	vroamCompass = null;
 	public Transform 	VRoamCompass {
 		get{return  vroamCompass;}
 		set
 		{
 			vroamCompass = value;
-			if( CameraRight ) {
-				MocapSocket mocap = CameraRight.GetComponent<MocapSocket>();
-				mocap.VRoamTransform = value;
-			}
+			UpdateCamerasDirtyFlag = true;
 		}
 	}
 	// Use this to decide where tracker sampling should take place
@@ -114,11 +112,6 @@ public class VIVECameraController : MonoBehaviour
 		MocapHeadset = new GameObject("oculus");
 		MocapHeadset.tag = "Mocap";
 
-		if( VRoamCompass == null ) {
-			var originCompass = new GameObject("Origin Compass");
-			VRoamCompass = originCompass.transform;
-		}
-
 		// Get the cameras
 		Camera[] cameras = gameObject.GetComponentsInChildren<Camera>();
 		
@@ -139,6 +132,12 @@ public class VIVECameraController : MonoBehaviour
 
 	void Start()
 	{
+		// Make sure we have an origin compass in the scene.
+		if( VRoamCompass == null ) {
+			var originCompass = new GameObject("Origin Compass");
+			VRoamCompass = originCompass.transform;
+		}
+
 		// Initialize the cameras
 		UpdateCamerasDirtyFlag = true;
 		Update();
@@ -186,6 +185,12 @@ public class VIVECameraController : MonoBehaviour
 
 		eyePositionOffset       = IPD * 0.5f;
 		ConfigureCamera(CameraRight, eyePositionOffset);
+
+		// Make sure the mocap transform is set.
+		if( CameraRight ) {
+			MocapSocket mocap = CameraRight.GetComponent<MocapSocket>();
+			mocap.VRoamTransform = VRoamCompass;
+		}
 	}
 
 	bool ConfigureCamera(Camera camera, float eyePositionOffset)
