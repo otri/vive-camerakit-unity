@@ -80,7 +80,7 @@ public class VIVETeleport : MonoBehaviour {
 		Transform interactionCompass = vivecontroller.VRoamCompass;
 
 		// If we're on an interactionCompass, then we have to transform our coordinate system to match.
-		Transform camTransform = vivecontroller.GetWorldTransform();
+		Transform camTransform = vivecontroller.GetCameraTransform();
 		Vector3 camForward = camTransform.forward;
 
 		GameObject[] compasses = GameObject.FindGameObjectsWithTag("VIVECompass");
