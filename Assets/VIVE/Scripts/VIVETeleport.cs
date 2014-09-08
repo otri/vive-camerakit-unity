@@ -30,6 +30,20 @@ using System.Collections.Generic;
 
 [RequireComponent(typeof(VIVECameraController))]
 public class VIVETeleport : MonoBehaviour {
+	Stack<Transform> history = new Stack<Transform>();
+
+	// PAGE UP and PAGE DOWN are teleport commands
+	void OnGUI()
+	{
+		Event e = Event.current;
+		if (e.type == EventType.KeyUp)
+		{
+			if(e.keyCode == KeyCode.PageDown) teleport();
+		} else if( e.keyCode == KeyCode.PageUp ) {
+			unTeleport();
+		}
+	}
+
 	public bool teleport() {
 		VIVECameraController vivecontroller = GetComponent<VIVECameraController>();
 		// Look for nearest compass, and jump there.
@@ -37,7 +51,22 @@ public class VIVETeleport : MonoBehaviour {
 		
 		// Go there.
 		if( nearestCompass ) {
+			// Push the current interactionCompass on the history.
+			Transform interactionCompass = vivecontroller.VRoamCompass;
+			history.Push(interactionCompass);
+
 			vivecontroller.VRoamCompass = nearestCompass.transform;
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	public bool unTeleport() {
+		if( history.Count > 0 ) {
+			Transform interactionCompass = history.Pop();
+			VIVECameraController vivecontroller = GetComponent<VIVECameraController>();
+			vivecontroller.VRoamCompass = interactionCompass;
 			return true;
 		} else {
 			return false;
@@ -51,7 +80,7 @@ public class VIVETeleport : MonoBehaviour {
 		Transform interactionCompass = vivecontroller.VRoamCompass;
 
 		// If we're on an interactionCompass, then we have to transform our coordinate system to match.
-		Transform camTransform = vivecontroller.GetCameraTransform();
+		Transform camTransform = vivecontroller.GetWorldTransform();
 		Vector3 camForward = camTransform.forward;
 
 		GameObject[] compasses = GameObject.FindGameObjectsWithTag("VIVECompass");
