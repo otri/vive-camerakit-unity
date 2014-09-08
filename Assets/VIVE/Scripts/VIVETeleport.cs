@@ -38,10 +38,14 @@ public class VIVETeleport : MonoBehaviour {
 		Event e = Event.current;
 		if (e.type == EventType.KeyUp)
 		{
-			if(e.keyCode == KeyCode.PageDown) teleport();
-		} else if( e.keyCode == KeyCode.PageUp ) {
-			unTeleport();
-		}
+			if(e.keyCode == KeyCode.PageDown) {
+				Debug.Log("Teleport from Presenter PgDown");
+				teleport();
+			} else if( e.keyCode == KeyCode.PageUp ) {
+				Debug.Log("UnTeleport from Presenter PgUp");
+				unTeleport();
+			}
+		} 
 	}
 
 	public bool teleport() {
