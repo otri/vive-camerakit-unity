@@ -106,6 +106,18 @@ public class MocapSocket : MonoBehaviour {
 	double fps        = 0.0;
 	double updateRate = 4.0;  // 4 updates per sec.
 
+	// These are special flags that are set to trigger the reseting of the orientation for various objects in the scene.
+	// Typically they are false however, when an operator presses the appropriate key, the current orientation of the object
+	// is retrieved and set as the base orientation.
+	// The logic works as follows:
+	// - The flag is false
+	// - If an operator presses a given key, this is intercepted in the OnGUI callback.  Since this callback
+	//   does not have the current state of motion capture information it simply sets the flag in the hope it will 
+	//   be handled in ProcessFrame.
+	// In ProcessFrame, each frame of information being emmited by the motion capture system is parsed and each rigid body definition is
+	// decoded to get its translation and orientation.
+	// If the flag is set to true, the inverse of the current orientation is set as the new base orientation so that when the current orientation is applied
+	// it is nullified by the inverse orientation to produce the correct orientation.
 	bool captureOriOculus = false;
 	bool captureOriBody   = false;
 	bool captureOriHands  = false;
@@ -489,7 +501,17 @@ public class MocapSocket : MonoBehaviour {
 					continue;
 				}
 				float[] tr = new float[3];
-				for(int k=0; k < 3; k++) tr[k] = float.Parse (segmentSplit[k+1]);
+				for(int k=0; k < 3; k++)
+				{
+					if ( segmentSplit[k+1] == "nan" )
+					{
+						tr[k] = float.NaN;
+					}
+					else if ( float.TryParse(segmentSplit[k+1], out tr[k]) == false )
+					{
+						Debug.LogWarning( "Could not parse line: " + lineItems[line-1] );
+					}
+				}
 				items[item_i++] = new SegmentItem(segmentSplit[0], tr, zero, false);
 			}
 			if(!subjectList.ContainsKey(subjectName))
@@ -509,11 +531,12 @@ public class MocapSocket : MonoBehaviour {
 
 	public void processFrame()
 	{
-
+		// If no mocap data stream is currently connected, exit.
 		if (!isActive)
 		{
 			return;
 		}
+		// If the socket connection is no longer available, exit.
 		if( clientSocket == null)
 		{
 			infoMessage = "NO CONNECTION";
@@ -522,6 +545,7 @@ public class MocapSocket : MonoBehaviour {
 
 		Dictionary< string, SegmentItem[] > subjectList;
 
+		// Extract a list of subjects from the connected motion capture data stream.  If this fails then exit.
 		if(!GetData(out subjectList)) { return; }
 
 		// Frame rate calculator
@@ -529,80 +553,111 @@ public class MocapSocket : MonoBehaviour {
 
 		infoMessage = "Subjects: " + subjectList.Keys.Count + "\n";
 
-		// For each subject
+		// The motion capture stream consists of a sequence of frames.  Each frame contains information on zero or more
+		// named subjects (rigid bodies or skeletons) currently being tracked.
+		// Each subject has a set of information associated with it.
+		// In the case of rigid bodies this consists of a "root" object which represents the best fit centroid of the
+		// marker locations associated with the subject followed by the raw positions of each of the visible markers 
+		// that make up that rigid body.  The motion capture system is currently responsible for matching
+		// the relative positions of markers to a given rigid body subject.  Once it has done this matching it can infer
+		// an averaged position and orientation of the rigid body which is stored in the root.
+		// Thus, for each subject, extract its name, the root translation and orientation.
+		// The marker locations are also available if they need to be rendered but this is not currently used.
+
+		// For each subject extracted from the motion capture data stream...
 		foreach(KeyValuePair<String, SegmentItem[]> entry in subjectList)
 		{
+			// Extract the subject's name
 			string subject = entry.Key.ToLower();
 
 			infoMessage += "SUBJECT: " + subject;
 
 			bool frameDone = false;
 
-			// For each segment in subject
+
+			// For each segment in subject...
 			foreach(SegmentItem item in entry.Value)
 			{
+				// If an item is null it is most likely not currently being tracked by the motion capture system.
+				// For example an occuluded marker or a rigid body that is outside the volume.
 				if(item == null)
 				{
 					infoMessage += " - skipping null\n";
 					continue;
 				}
+
+				// If the item is a "joint" this simply means that it has both position and orientation.
+				// Rigid bodies and skeleton "bones" are both joints.
 				if(item.isJoint)
 				{
-					// JOINT
-					//Quaternion localOrientation  =  new Quaternion(item.ro[0], item.ro[2], -item.ro[1], item.ro[3]);
+					// Extract the current orientation of the joint from the item.  This orientation is stored in a
+					// quaternion.  http://en.wikipedia.org/wiki/Quaternion
 					Quaternion localOrientation  =  new Quaternion(item.ro[0], item.ro[1], item.ro[2], item.ro[3]);
+
+					// The game object is an object within Unity that is associated with a Joint in the mocap system.
 					GameObject o = null;
 
+					// Determine if the subject is one of a special set of objects which can have their orientation
+					// manually reset at runtime.  These subjects must be rigid bodies (not skeleton "bones".
 					bool isHands  = (subject == LEFT_HAND_OBJECT.ToLower()  || subject == RIGHT_HAND_OBJECT.ToLower());
 					bool isTest   = (subject == TEST_OBJECT.ToLower() );
 					bool isFeet   = (subject == RIGHT_FOOT_OBJECT.ToLower() || subject == LEFT_FOOT_OBJECT.ToLower());
 					bool isOculus = (subject == OCULUS_OBJECT.ToLower());
 
+
+					// If the object is a resetable rigid body...
 					if ( isHands || isFeet || isOculus || isTest )
 					{
+						// If this item is the "root"
 						// Rigidbody joint
 						if(item.name == "root")
 						{
-							// Rigid objects match on subject name, not segment
-							if ( !objectDict.ContainsKey( subject.ToLower () ) )
+							// Rigid bodies match on subject name, not on the segment name.  If we can't find
+							// an object in the Unity scene graph that matches the subject name, continue onto the next object.
+							if ( !objectDict.ContainsKey( subject.ToLower() ) )
 							{
 								infoMessage += "- Rigid Missing\n";
 								continue;
 							}
 							infoMessage += " (rigid)";
-							o = objectDict[subject];
+							// Assign the game object to the Unity object matching the subject name.
+							o = objectDict[subject.ToLower()];
 						}
-//					}
-//					else if( isOculus ) {
-//						// Specially handle headset
-//						o = GameObject.FindObjectOfType<VIVECameraController>().gameObject;
-					} else
+					}
+					else // If it is not one of the resetable rigid bodies, then it must be part of a skeleton.
 					{
-						// Body Joint
-						if ( !objectDict.ContainsKey( item.name.ToLower () ) )
+						// Body joints match on segment name.  If we can't find an object in the
+						// Unity scene graph that matches the segment name, continue onto the next object.
+						if ( !objectDict.ContainsKey( item.name.ToLower() ) )
 						{
 							infoMessage += "\n  body missing:" + item.name.ToLower ();
 							continue;
 						}
-						infoMessage += "\n   body: " + item.name.ToLower ();
-						o = objectDict[item.name.ToLower ()];
+						infoMessage += "\n   body: " + item.name.ToLower();
+						// Assign the game object to the Unity object matching the segment name.
+						o = objectDict[item.name.ToLower()];
 					}
 
+					// If we didn't find a matching Unity object, continue onto the next segment
 					if( o == null) continue;
 
-					// Zero off the rotations
+					// As per the description at the top of this file,
+					// This is the logic which triggers the resetting of the orientation of resetable rigid bodies.
 					bool doHands  = isHands && captureOriHands;
 					bool doFeet   = isFeet && captureOriFeet;
 					bool doBody   = (!isOculus && !isHands && !isFeet && captureOriBody);
 					bool doOculus = isOculus && captureOriOculus;
+
+					// If we are going to reset one of the resetable rigid bodies...
 					if (  doHands || doFeet || doBody || doOculus ) 
 					{
-						//PlayerPrefs.SetFloat(segmentName, inputOrientation.ToString());						
+						// Create or update the rotation offset associated with this Unity object to be right (1, 0, 0) unit vector rotated
+						// by the inverse orientation of the current rigid bodies orientation.
 						rotationOffsets[o] =  Quaternion.AngleAxis(0, Vector3.right) * Quaternion.Inverse ( localOrientation );
 					}
 
 					// Set object visibility
-					o.SetActive (true);
+					o.SetActive(true);
 
 					// Set Translation and rotation
 					//o.transform.localPosition = new Vector3(-item.tr[0] / 100, -item.tr[2] / 100, item.tr[1] / 100);
@@ -660,6 +715,4 @@ public class MocapSocket : MonoBehaviour {
 		captureOriFeet = false;
 		captureOriBody = false;
 	}
-
-
 }
