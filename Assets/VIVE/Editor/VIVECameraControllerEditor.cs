@@ -49,7 +49,7 @@ public class VIVECameraControllerEditor : Editor
 
 		_component.VRoamCompass 	= EditorGUILayout.ObjectField("Starting Compass",
 		                                                          _component.VRoamCompass,
-		                                                          typeof(Transform), true) as Transform;
+		                                                          typeof(GameObject), true) as GameObject;
 		Separator();			
 		
 		_component.VerticalFOV 			= EditorGUILayout.FloatField("Vertical FOV", _component.VerticalFOV);

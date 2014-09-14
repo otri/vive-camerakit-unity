@@ -58,8 +58,8 @@ public class VIVECameraController : MonoBehaviour
 	// Camera positioning:
 	// Set this transform with an object that the camera orientation should follow.
 	[SerializeField]
-	private Transform 	vroamCompass = null;
-	public Transform 	VRoamCompass {
+	private GameObject 	vroamCompass = null;
+	public GameObject 	VRoamCompass {
 		get{return  vroamCompass;}
 		set
 		{
@@ -135,7 +135,7 @@ public class VIVECameraController : MonoBehaviour
 		// Make sure we have an origin compass in the scene.
 		if( VRoamCompass == null ) {
 			var originCompass = new GameObject("Origin Compass");
-			VRoamCompass = originCompass.transform;
+			VRoamCompass = originCompass;
 		}
 
 		// Initialize the cameras
@@ -189,7 +189,7 @@ public class VIVECameraController : MonoBehaviour
 		// Make sure the mocap transform is set.
 		if( CameraRight ) {
 			MocapSocket mocap = CameraRight.GetComponent<MocapSocket>();
-			mocap.VRoamTransform = VRoamCompass;
+			mocap.VRoamTransform = VRoamCompass.transform;
 		}
 	}
 

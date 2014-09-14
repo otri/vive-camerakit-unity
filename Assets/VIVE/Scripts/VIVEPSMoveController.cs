@@ -86,7 +86,7 @@ public class VIVEPSMoveController : MonoBehaviour
 
 	void UpdateTeleportTrigger() {
 		// Update Teleport trigger
-		VIVETeleport viveteleport = GetComponent<VIVETeleport>();
+		VIVETeleportController viveteleport = GetComponent<VIVETeleportController>();
 		foreach(UniMoveController move in moves)
 		{
 			// Instead of this somewhat kludge-y check, we'd probably want to remove/destroy
