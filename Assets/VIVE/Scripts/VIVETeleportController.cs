@@ -59,6 +59,12 @@ public class VIVETeleportController : MonoBehaviour {
 			GameObject interactionCompass = vivecontroller.VRoamCompass;
 			history.Push(interactionCompass);
 
+			Transform camTransform = vivecontroller.GetCameraTransform();
+			Vector3 camForward = camTransform.forward;
+			Vector3 dirTo = nearestCompass.transform.position - camTransform.position;
+			float msgAngle = Vector3.Angle(camForward, dirTo);
+			Debug.Log("Jumping to "+nearestCompass.name+", angle("+msgAngle+") distance("+dirTo.magnitude+")");
+
 			vivecontroller.VRoamCompass = nearestCompass;
 			return true;
 		} else {
@@ -138,11 +144,6 @@ public class VIVETeleportController : MonoBehaviour {
 			return 0;
 		});
 
-		GameObject target = visibleCompasses[0];
-		Vector3 dirTo = target.transform.position - camTransform.position;
-		float msgAngle = Vector3.Angle(camForward, dirTo);
-		Debug.Log("Jumping to "+target.name+", angle("+msgAngle+") distance("+dirTo.magnitude+")");
-
-		return target;
+		return visibleCompasses[0];
 	}
 }
